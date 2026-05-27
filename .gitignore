@@ -1,0 +1,22 @@
+# PlatformIO build dizinleri
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+.idea/
+
+# Derlenen host test binary
+test_host
+test_host.exe
+*.o
+*.obj
+*.a
+
+# Sistem
+.DS_Store
+Thumbs.db
+
+# Yedek dosyalar
+*~
+*.bak
+*.swp

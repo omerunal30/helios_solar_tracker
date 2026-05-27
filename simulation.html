@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Parabol Oluk Tracker - Simulasyon</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #1a1d23; color: #d8dee9;
+  }
+  h1 { font-size: 18px; margin: 0 0 8px 0; color: #88c0d0; }
+  .row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; }
+  .panel {
+    background: #2e3440; border: 1px solid #3b4252; border-radius: 6px;
+    padding: 10px;
+  }
+  .panel h2 { font-size: 13px; margin: 0 0 8px 0; color: #81a1c1; text-transform: uppercase; letter-spacing: 0.5px; }
+  canvas { display: block; width: 100%; background: #11141a; border-radius: 4px; }
+  #sideView { aspect-ratio: 16/9; }
+  #graphView { width: 100%; height: 220px; margin-top: 12px; }
+  .telemetry { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; line-height: 1.7; }
+  .telemetry .key { color: #81a1c1; display: inline-block; width: 100px; }
+  .telemetry .val { color: #eceff4; }
+  .state-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+  }
+  .state-INIT         { background: #5e81ac; color: white; }
+  .state-HOME_FIND    { background: #d08770; color: white; }
+  .state-SUNRISE_WAIT { background: #ebcb8b; color: #2e3440; }
+  .state-TRACKING     { background: #a3be8c; color: #2e3440; }
+  .state-DEFOCUS      { background: #bf616a; color: white; }
+  .state-STOW         { background: #5e81ac; color: white; }
+  .state-ERROR        { background: #bf616a; color: white; }
+  label { display: block; font-size: 12px; color: #81a1c1; margin: 8px 0 2px; }
+  input[type=date], input[type=time], input[type=number], select {
+    width: 100%; padding: 5px 8px; background: #1a1d23; color: #eceff4;
+    border: 1px solid #3b4252; border-radius: 4px; font: inherit;
+  }
+  input[type=range] { width: 100%; }
+  button {
+    padding: 6px 14px; background: #5e81ac; color: white; border: none;
+    border-radius: 4px; cursor: pointer; font-size: 13px; margin-right: 6px;
+  }
+  button:hover { background: #81a1c1; }
+  button.danger { background: #bf616a; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .legend { font-size: 11px; color: #88c0d0; margin-top: 4px; }
+  .legend span { display: inline-block; margin-right: 12px; }
+  .legend .sw { display: inline-block; width: 12px; height: 3px; vertical-align: middle; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Parabol Oluk Tracker — Simulasyon (Yan Gorunum, kuzeyden bakis)</h1>
+
+<div class="row">
+  <div class="panel">
+    <h2>Yan Görünüm (Dogu solda, Bati sagda)</h2>
+    <canvas id="sideView" width="900" height="520"></canvas>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Telemetri</h2>
+      <div class="telemetry">
+        <div><span class="key">State:</span> <span id="t-state" class="state-pill state-INIT">INIT</span></div>
+        <div><span class="key">Tarih:</span>  <span class="val" id="t-date">--</span></div>
+        <div><span class="key">Saat:</span>   <span class="val" id="t-time">--</span></div>
+        <div><span class="key">Sun elev:</span> <span class="val" id="t-elev">--</span>°</div>
+        <div><span class="key">Sun azim:</span> <span class="val" id="t-az">--</span>°</div>
+        <div><span class="key">Track tgt:</span> <span class="val" id="t-tgt">--</span>°</div>
+        <div><span class="key">Pos current:</span> <span class="val" id="t-cur">--</span>°</div>
+        <div><span class="key">Motor freq:</span> <span class="val" id="t-freq">--</span> Hz</div>
+        <div><span class="key">Motor hizi:</span> <span class="val" id="t-speed">--</span> °/s</div>
+        <div><span class="key">Pipe temp:</span> <span class="val" id="t-temp">--</span> °C</div>
+        <div><span class="key">Sim hizi:</span> <span class="val" id="t-scale">--</span>x</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top: 12px;">
+      <h2>Kontrol</h2>
+      <div class="grid2">
+        <div>
+          <label>Tarih</label>
+          <input type="date" id="c-date" value="2026-03-20">
+        </div>
+        <div>
+          <label>Baslangic saati</label>
+          <input type="time" id="c-time" value="04:00">
+        </div>
+        <div>
+          <label>Enlem</label>
+          <input type="number" id="c-lat" value="39.9334" step="0.0001">
+        </div>
+        <div>
+          <label>Boylam</label>
+          <input type="number" id="c-lon" value="32.8597" step="0.0001">
+        </div>
+        <div>
+          <label>UTC offset (saat)</label>
+          <input type="number" id="c-utc" value="3" step="1">
+        </div>
+        <div>
+          <label>Sim hizi</label>
+          <select id="c-scale">
+            <option value="1">1x (gercek)</option>
+            <option value="60">60x (1sn=1dk)</option>
+            <option value="600" selected>600x (1sn=10dk)</option>
+            <option value="1800">1800x (1sn=30dk)</option>
+            <option value="3600">3600x (1sn=1sa)</option>
+            <option value="7200">7200x (1sn=2sa)</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Pipe sicakligi (manuel override) — <span id="c-temp-lbl">100</span>°C</label>
+      <input type="range" id="c-temp" min="20" max="500" value="100" step="5">
+
+      <label><input type="checkbox" id="c-auto-temp" checked>
+        Otomatik isinma modeli (TRACKING'de artar, DEFOCUS/STOW'da duser)</label>
+
+      <div style="margin-top: 12px;">
+        <button id="btn-play">▶ Oynat</button>
+        <button id="btn-pause">⏸ Durdur</button>
+        <button id="btn-reset" class="danger">↺ Sifirla</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top: 12px;">
+  <h2>Gun Boyu Grafik</h2>
+  <canvas id="graphView" width="1700" height="220"></canvas>
+  <div class="legend">
+    <span><span class="sw" style="background:#ebcb8b"></span>Gunes elevation (°)</span>
+    <span><span class="sw" style="background:#88c0d0"></span>Hedef track acisi (°)</span>
+    <span><span class="sw" style="background:#a3be8c"></span>Anlik oluk acisi (°)</span>
+    <span><span class="sw" style="background:#bf616a"></span>Pipe sicakligi /10 (°C/10)</span>
+  </div>
+</div>
+
+<script>
+// ===========================================================================
+//  SIMULASYON - C++ kodunun JavaScript portu
+//  - sun_position.cpp  -> computeSunPosition()
+//  - motor_driver.cpp  -> MotorDriver class
+//  - tracker.cpp       -> Tracker class
+// ===========================================================================
+
+// ---------- KONFIGURASYON (config.h ile uyumlu) ----------
+const CFG = {
+  TRACK_ANGLE_MIN: -90, TRACK_ANGLE_MAX: 90,
+  HOME_ANGLE: -90, STOW_ANGLE: -90,   // gece park = ertesi gunun baslangici
+  DEFOCUS_PARK_ANGLE: 0,              // asiri sicaklikta zenit guvenlik park
+
+  PULSES_PER_MOTOR_REV: 10000, GEAR_RATIO: 100,
+  get PULSES_PER_DEGREE() { return this.PULSES_PER_MOTOR_REV * this.GEAR_RATIO / 360; },
+
+  // Gercekci slew hizlari (~1°/s). Yuksek hiz sim'de "tak" diye gorunur.
+  PULSE_FREQ_MIN: 100, PULSE_FREQ_MAX: 3000,
+
+  RAMP_UP_TIME_MS: 2500, RAMP_DOWN_TIME_MS: 2500, RAMP_STEP_MS: 50,
+
+  ANGLE_TOLERANCE: 0.3, ANGLE_RAMP_ZONE: 3.0,
+  TRACK_INTERVAL_MS: 10000,
+
+  TEMP_DEFOCUS_HIGH: 350, TEMP_RESUME_LOW: 280,
+  SUNRISE_MIN_ELEVATION: 2.0, SUNSET_MIN_ELEVATION: 2.0,
+};
+
+// ---------- SUN POSITION (sun_position.cpp portu) ----------
+function computeJulianDay(dt) {
+  let hour_utc = dt.hour - dt.utc + (dt.minute + dt.second/60)/60;
+  let Y = dt.year, M = dt.month, D = dt.day;
+  while (hour_utc < 0)   { hour_utc += 24; D -= 1; }
+  while (hour_utc >= 24) { hour_utc -= 24; D += 1; }
+  if (M <= 2) { Y -= 1; M += 12; }
+  const A = Math.floor(Y / 100);
+  const B = 2 - A + Math.floor(A / 4);
+  return Math.floor(365.25 * (Y + 4716))
+       + Math.floor(30.6001 * (M + 1))
+       + D + B - 1524.5
+       + hour_utc / 24;
+}
+function norm360(x) { x = x % 360; return x < 0 ? x + 360 : x; }
+function norm24(x)  { x = x % 24;  return x < 0 ? x + 24  : x; }
+
+function computeSunPosition(dt, lat, lon) {
+  const D2R = Math.PI/180, R2D = 180/Math.PI;
+  const JD = computeJulianDay(dt);
+  const n = JD - 2451545.0;
+  const L = norm360(280.460 + 0.9856474 * n);
+  const g = norm360(357.528 + 0.9856003 * n);
+  const lambda = L + 1.915*Math.sin(g*D2R) + 0.020*Math.sin(2*g*D2R);
+  const epsilon = 23.439 - 0.0000004 * n;
+  let alpha = Math.atan2(Math.cos(epsilon*D2R)*Math.sin(lambda*D2R), Math.cos(lambda*D2R)) * R2D;
+  alpha = norm360(alpha);
+  const delta = Math.asin(Math.sin(epsilon*D2R)*Math.sin(lambda*D2R)) * R2D;
+  const GMST = norm24(18.697374558 + 24.06570982441908 * n);
+  const LMST_deg = norm360(GMST * 15 + lon);
+  let H = LMST_deg - alpha;
+  if (H > 180)  H -= 360;
+  if (H < -180) H += 360;
+  const latR = lat*D2R, decR = delta*D2R, HR = H*D2R;
+  let sin_alt = Math.sin(latR)*Math.sin(decR) + Math.cos(latR)*Math.cos(decR)*Math.cos(HR);
+  sin_alt = Math.max(-1, Math.min(1, sin_alt));
+  const altitude = Math.asin(sin_alt);
+  const cos_alt = Math.cos(altitude);
+  let azimuth = 0;
+  if (cos_alt > 1e-9) {
+    let cos_az = (Math.sin(decR) - sin_alt*Math.sin(latR)) / (cos_alt*Math.cos(latR));
+    cos_az = Math.max(-1, Math.min(1, cos_az));
+    azimuth = Math.acos(cos_az) * R2D;
+    if (Math.sin(HR) > 0) azimuth = 360 - azimuth;
+  }
+  const azR = azimuth*D2R;
+  const s_east = cos_alt * Math.sin(azR);
+  const s_up   = sin_alt;
+  const track  = Math.atan2(-s_east, s_up) * R2D;
+  return { elevation: altitude*R2D, azimuth, track_angle: track, s_east, s_up };
+}
+
+// ---------- MOTOR DRIVER (motor_driver.cpp portu, basitlestirilmis) ----------
+class MotorDriver {
+  constructor() {
+    this.state = 'IDLE';       // IDLE, RAMP_UP, CRUISE, RAMP_DOWN, REVERSING
+    this.cur_freq = 0;
+    this.tgt_freq = 0;
+    this.freq_cap = -1;
+    this.cur_dir = 0;          // -1 east, +1 west, 0 stop
+    this.pending_dir = 0;
+    this.pending_freq = 0;
+    this.ramp_start = 0;
+    this.ramp_start_freq = 0;
+    this.last_step = 0;
+  }
+  effectiveTarget() {
+    let t = this.tgt_freq;
+    if (this.freq_cap >= 0 && t > this.freq_cap) t = this.freq_cap;
+    if (t > 0 && t < CFG.PULSE_FREQ_MIN) t = CFG.PULSE_FREQ_MIN;
+    if (t > CFG.PULSE_FREQ_MAX) t = CFG.PULSE_FREQ_MAX;
+    return t;
+  }
+  setTarget(freq, dir, now) {
+    if (freq <= 0 || dir === 0) { this.stop(now); return; }
+    if (freq > CFG.PULSE_FREQ_MAX) freq = CFG.PULSE_FREQ_MAX;
+    // Zaten ayni yone reverse oluyorsak: SADECE pending_freq guncelle, RESTART YAPMA.
+    // Aksi halde her substep ramp_start sifirlanir, reversal asla tamamlanmaz.
+    if (this.state === 'REVERSING' && this.pending_dir === dir) {
+      this.pending_freq = freq;
+      return;
+    }
+    if (this.cur_dir !== 0 && this.cur_dir !== dir) {
+      this.pending_dir = dir; this.pending_freq = freq;
+      this.state = 'REVERSING';
+      this.ramp_start = now; this.ramp_start_freq = this.cur_freq;
+      return;
+    }
+    this.tgt_freq = freq; this.cur_dir = dir;
+    if (this.state === 'IDLE' || this.state === 'RAMP_DOWN') {
+      this.state = 'RAMP_UP';
+      this.ramp_start = now; this.ramp_start_freq = this.cur_freq;
+    }
+  }
+  stop(now) {
+    // Zaten duruyor veya yavasliyorsa restart yapma
+    if (this.state === 'IDLE' || this.state === 'RAMP_DOWN') return;
+    if (this.cur_freq === 0) { this.state = 'IDLE'; this.cur_dir = 0; return; }
+    this.state = 'RAMP_DOWN';
+    this.ramp_start = now; this.ramp_start_freq = this.cur_freq;
+    this.pending_dir = 0;
+  }
+  setFreqCap(c) { this.freq_cap = c; }
+  update(now) {
+    if (now - this.last_step < CFG.RAMP_STEP_MS) return;
+    this.last_step = now;
+    const tgt = this.effectiveTarget();
+    switch (this.state) {
+      case 'IDLE': this.cur_freq = 0; break;
+      case 'RAMP_UP': {
+        const elapsed = now - this.ramp_start;
+        if (elapsed >= CFG.RAMP_UP_TIME_MS) { this.cur_freq = tgt; this.state = 'CRUISE'; }
+        else {
+          const delta = tgt - this.ramp_start_freq;
+          this.cur_freq = this.ramp_start_freq + delta * elapsed / CFG.RAMP_UP_TIME_MS;
+          this.cur_freq = Math.max(CFG.PULSE_FREQ_MIN, Math.min(tgt, this.cur_freq));
+        }
+        break;
+      }
+      case 'CRUISE': {
+        if (this.cur_freq < tgt) {
+          this.state = 'RAMP_UP'; this.ramp_start = now; this.ramp_start_freq = this.cur_freq;
+        } else if (this.cur_freq > tgt) {
+          const step = Math.max(50, (CFG.PULSE_FREQ_MAX - CFG.PULSE_FREQ_MIN) / 60);
+          this.cur_freq = Math.max(tgt, this.cur_freq - step);
+        }
+        break;
+      }
+      case 'RAMP_DOWN': {
+        const elapsed = now - this.ramp_start;
+        if (elapsed >= CFG.RAMP_DOWN_TIME_MS) {
+          this.cur_freq = 0; this.cur_dir = 0; this.state = 'IDLE';
+        } else {
+          this.cur_freq = this.ramp_start_freq * (1 - elapsed / CFG.RAMP_DOWN_TIME_MS);
+        }
+        break;
+      }
+      case 'REVERSING': {
+        const elapsed = now - this.ramp_start;
+        if (elapsed >= CFG.RAMP_DOWN_TIME_MS || this.cur_freq <= 0) {
+          this.cur_freq = 0; this.cur_dir = this.pending_dir; this.tgt_freq = this.pending_freq;
+          this.state = 'RAMP_UP'; this.ramp_start = now; this.ramp_start_freq = 0;
+          this.pending_dir = 0;
+        } else {
+          this.cur_freq = this.ramp_start_freq * (1 - elapsed / CFG.RAMP_DOWN_TIME_MS);
+        }
+        break;
+      }
+    }
+  }
+}
+
+// ---------- TRACKER (tracker.cpp portu) ----------
+class Tracker {
+  constructor(motor) {
+    this.motor = motor;
+    this.state = 'INIT';
+    this.target_angle = CFG.HOME_ANGLE;
+    this.current_angle = CFG.HOME_ANGLE;
+    this.last_sun = { elevation: 0, azimuth: 0, track_angle: 0, s_east: 0, s_up: 0 };
+    this.last_track_update = 0;
+    this.state_entry = 0;
+    this.overheated = false;
+    this.pre_defocus_state = 'TRACKING';
+  }
+  enter(s, now) { this.state = s; this.state_entry = now; this.motor.stop(now); }
+
+  refreshSun(dt) {
+    this.last_sun = computeSunPosition(dt, LAT, LON);
+    let t = this.last_sun.track_angle;
+    if (t < CFG.TRACK_ANGLE_MIN) t = CFG.TRACK_ANGLE_MIN;
+    if (t > CFG.TRACK_ANGLE_MAX) t = CFG.TRACK_ANGLE_MAX;
+    this.target_angle = t;
+  }
+
+  driveToward(tgt, now) {
+    const err = tgt - this.current_angle;
+    const abs_err = Math.abs(err);
+    if (abs_err <= CFG.ANGLE_TOLERANCE) { this.motor.stop(now); return; }
+    let cap;
+    if (abs_err >= CFG.ANGLE_RAMP_ZONE) cap = CFG.PULSE_FREQ_MAX;
+    else {
+      const t = abs_err / CFG.ANGLE_RAMP_ZONE;
+      cap = CFG.PULSE_FREQ_MIN + t * (CFG.PULSE_FREQ_MAX - CFG.PULSE_FREQ_MIN);
+    }
+    this.motor.setFreqCap(cap);
+    const dir = err > 0 ? +1 : -1;
+    this.motor.setTarget(CFG.PULSE_FREQ_MAX, dir, now);
+  }
+
+  // sicaklik flag yonetimi
+  applyTempHysteresis(temp_c) {
+    if (!this.overheated && temp_c >= CFG.TEMP_DEFOCUS_HIGH) this.overheated = true;
+    if ( this.overheated && temp_c <= CFG.TEMP_RESUME_LOW)   this.overheated = false;
+  }
+
+  update(now, dt_now) {
+    this.motor.update(now);
+
+    // tracking iken asiri sicaklikta defocus'a gec
+    if (this.state === 'TRACKING' && this.overheated) {
+      this.pre_defocus_state = 'TRACKING';
+      this.enter('DEFOCUS', now);
+    }
+
+    switch (this.state) {
+      case 'INIT':
+        this.enter('HOME_FIND', now);
+        break;
+      case 'HOME_FIND':
+        if (this.current_angle <= CFG.HOME_ANGLE + CFG.ANGLE_TOLERANCE) {
+          this.motor.stop(now);
+          if (this.motor.cur_freq === 0) this.enter('SUNRISE_WAIT', now);
+        } else {
+          this.driveToward(CFG.HOME_ANGLE, now);
+        }
+        break;
+      case 'SUNRISE_WAIT':
+        if (now - this.last_track_update >= CFG.TRACK_INTERVAL_MS) {
+          this.last_track_update = now;
+          this.refreshSun(dt_now);
+          if (this.last_sun.elevation >= CFG.SUNRISE_MIN_ELEVATION) {
+            this.enter('TRACKING', now);
+          }
+        }
+        this.motor.stop(now);
+        break;
+      case 'TRACKING':
+        if (now - this.last_track_update >= CFG.TRACK_INTERVAL_MS) {
+          this.last_track_update = now;
+          this.refreshSun(dt_now);
+          if (this.last_sun.elevation < CFG.SUNSET_MIN_ELEVATION) {
+            this.enter('STOW', now); return;
+          }
+        }
+        this.driveToward(this.target_angle, now);
+        break;
+      case 'DEFOCUS': {
+        if (!this.overheated) { this.enter(this.pre_defocus_state, now); return; }
+        // Defocus = zenit (DEFOCUS_PARK_ANGLE = 0). Hicbir gunes acisinda
+        // parabol odak boruya gunesi toplamaz. STOW'dan farkli; STOW gece
+        // pozisyonu (ertesi gunun home'u), DEFOCUS termal guvenlik.
+        this.target_angle = CFG.DEFOCUS_PARK_ANGLE;
+        this.driveToward(CFG.DEFOCUS_PARK_ANGLE, now);
+        if (now - this.last_track_update >= CFG.TRACK_INTERVAL_MS) {
+          this.last_track_update = now;
+          this.refreshSun(dt_now);
+          if (this.last_sun.elevation < CFG.SUNSET_MIN_ELEVATION) this.enter('STOW', now);
+        }
+        break;
+      }
+      case 'STOW':
+        this.driveToward(CFG.STOW_ANGLE, now);
+        if (Math.abs(this.current_angle - CFG.STOW_ANGLE) <= CFG.ANGLE_TOLERANCE && this.motor.cur_freq === 0) {
+          if (now - this.last_track_update >= CFG.TRACK_INTERVAL_MS * 6) {
+            this.last_track_update = now;
+            this.refreshSun(dt_now);
+            if (this.last_sun.elevation >= CFG.SUNRISE_MIN_ELEVATION) this.enter('HOME_FIND', now);
+          }
+        }
+        break;
+    }
+  }
+}
+
+// ---------- SIMULASYON STATE ----------
+let LAT = 39.9334, LON = 32.8597, UTC = 3;
+let simWallTime = new Date('2026-03-20T04:00:00');  // simulated wall clock
+let simMillis = 0;                                   // millis() esdegeri
+let timeScale = 600;
+let running = true;
+let lastFrameMs = performance.now();
+let manualTempOverride = false;
+let manualTemp = 100;
+let autoTemp = true;
+let pipeTemp = 25;
+let history = []; // { hour_of_day, elev, target, current, temp }
+
+const motor = new MotorDriver();
+const tracker = new Tracker(motor);
+
+// ---------- TICK ----------
+function dtFromWall() {
+  return {
+    year: simWallTime.getFullYear(),
+    month: simWallTime.getMonth()+1,
+    day: simWallTime.getDate(),
+    hour: simWallTime.getHours(),
+    minute: simWallTime.getMinutes(),
+    second: simWallTime.getSeconds(),
+    utc: UTC,
+  };
+}
+
+function step(dt_real_ms) {
+  if (!running) return;
+  const dt_sim_ms = dt_real_ms * timeScale;
+  simMillis += dt_sim_ms;
+  simWallTime = new Date(simWallTime.getTime() + dt_sim_ms);
+
+  // Pozisyonu motor hareketinden hesapla (gercek encoder yerine)
+  // velocity (deg/s) = freq / PULSES_PER_DEGREE * sign(dir)
+  const v = (motor.cur_freq / CFG.PULSES_PER_DEGREE) * motor.cur_dir;
+  tracker.current_angle += v * (dt_sim_ms / 1000);
+  tracker.current_angle = Math.max(CFG.TRACK_ANGLE_MIN-2,
+                                    Math.min(CFG.TRACK_ANGLE_MAX+2,
+                                             tracker.current_angle));
+
+  // Sicaklik modeli: birinci dereceden gecikme (lag) ile denge sicakligina yaklasir.
+  // T_eq sadece TRACKING'de yuksek; aksi halde ortam sicakligi.
+  // Bu sayede otomatik mod realistik kalir ve DEFOCUS'u kendi kendine
+  // tetiklemez (oluk salinim yapmaz). DEFOCUS testi icin manuel slider kullan.
+  if (manualTempOverride) {
+    pipeTemp = manualTemp;
+  } else if (autoTemp) {
+    const elev = tracker.last_sun.elevation;
+    let T_eq;
+    if (tracker.state === 'TRACKING' && elev > 0) {
+      T_eq = 25 + 230 * Math.min(1, elev / 90);  // peak ~255°C zenitte
+    } else if (tracker.state === 'DEFOCUS') {
+      T_eq = 25;
+    } else {
+      T_eq = 25;
+    }
+    const tau_sim_sec = 1200;  // 20 dakikalik termal zaman sabiti
+    const dt_sim_sec = dt_sim_ms / 1000;
+    pipeTemp += (T_eq - pipeTemp) * (dt_sim_sec / tau_sim_sec);
+    pipeTemp = Math.max(20, Math.min(600, pipeTemp));
+  }
+  tracker.applyTempHysteresis(pipeTemp);
+
+  tracker.update(simMillis, dtFromWall());
+
+  // Grafik icin tarihce kaydet (5 dk sim aralikla)
+  const hod = simWallTime.getHours() + simWallTime.getMinutes()/60 + simWallTime.getSeconds()/3600;
+  if (history.length === 0 || (hod - history[history.length-1].h) > 0.05 || hod < history[history.length-1].h - 1) {
+    if (hod < (history[history.length-1]?.h ?? -1)) history = []; // gun degisti
+    history.push({
+      h: hod,
+      elev: tracker.last_sun.elevation,
+      tgt: tracker.target_angle,
+      cur: tracker.current_angle,
+      temp: pipeTemp,
+      state: tracker.state,
+    });
+    if (history.length > 5000) history.shift();
+  }
+}
+
+// ---------- RENDERING: SIDE VIEW ----------
+const sideCanvas = document.getElementById('sideView');
+const sideCtx = sideCanvas.getContext('2d');
+
+function drawSideView() {
+  const W = sideCanvas.width, H = sideCanvas.height;
+  sideCtx.clearRect(0, 0, W, H);
+  // gradient gokyuzu
+  const grad = sideCtx.createLinearGradient(0, 0, 0, H);
+  const elev = tracker.last_sun.elevation;
+  const nightFactor = elev < 0 ? 1 : Math.max(0, 1 - elev/20);
+  grad.addColorStop(0, `rgb(${20 + (1-nightFactor)*60}, ${30 + (1-nightFactor)*110}, ${50 + (1-nightFactor)*150})`);
+  grad.addColorStop(1, `rgb(${30 + (1-nightFactor)*100}, ${50 + (1-nightFactor)*100}, ${70 + (1-nightFactor)*100})`);
+  sideCtx.fillStyle = grad;
+  sideCtx.fillRect(0, 0, W, H);
+
+  // metric -> piksel donusumu
+  const cx = W / 2, cy = H - 80;       // origin: zemin merkezi
+  const SCALE = 38;                     // 1m = 38 piksel
+
+  // Zemin
+  sideCtx.fillStyle = '#3b4252';
+  sideCtx.fillRect(0, cy, W, H-cy);
+  sideCtx.strokeStyle = '#5e81ac';
+  sideCtx.beginPath(); sideCtx.moveTo(0, cy); sideCtx.lineTo(W, cy); sideCtx.stroke();
+
+  // Pusula yazilari (yan goruste: dogu sol, bati sag - kuzeyden bakis)
+  sideCtx.fillStyle = '#88c0d0'; sideCtx.font = 'bold 14px sans-serif';
+  sideCtx.textAlign = 'left';   sideCtx.fillText('DOGU', 16, cy - 8);
+  sideCtx.textAlign = 'right';  sideCtx.fillText('BATI', W - 16, cy - 8);
+  sideCtx.textAlign = 'left';
+
+  // Pylon (taşıyıcı direk)
+  sideCtx.fillStyle = '#4c566a';
+  sideCtx.fillRect(cx - 6, cy - 40, 12, 40);
+
+  // Gunes pozisyonu (yan goruste: x = -s_east, y = s_up)
+  const sunDist = SCALE * 5;
+  const sunX = cx + (-tracker.last_sun.s_east) * sunDist;
+  const sunY = cy - tracker.last_sun.s_up * sunDist;
+
+  // Gunes isinlari (parabola toplaniyormus gibi)
+  if (tracker.last_sun.s_up > 0) {
+    sideCtx.strokeStyle = 'rgba(255,220,80,0.25)';
+    sideCtx.lineWidth = 1;
+    for (let i = -2.5; i <= 2.5; i += 0.5) {
+      sideCtx.beginPath();
+      sideCtx.moveTo(sunX + i*8, sunY + 10);
+      // hedefi parabola merkezi yap
+      sideCtx.lineTo(cx + i * Math.cos(tracker.current_angle*Math.PI/180) * SCALE,
+                     cy - 40 + i * Math.sin(tracker.current_angle*Math.PI/180) * SCALE);
+      sideCtx.stroke();
+    }
+  }
+
+  // Gunes
+  if (tracker.last_sun.s_up > -0.2) {
+    const sunGrad = sideCtx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 28);
+    sunGrad.addColorStop(0, 'rgba(255,240,150,1)');
+    sunGrad.addColorStop(0.5, 'rgba(255,210,80,0.7)');
+    sunGrad.addColorStop(1, 'rgba(255,180,40,0)');
+    sideCtx.fillStyle = sunGrad;
+    sideCtx.beginPath(); sideCtx.arc(sunX, sunY, 28, 0, Math.PI*2); sideCtx.fill();
+    sideCtx.fillStyle = '#ffd54a';
+    sideCtx.beginPath(); sideCtx.arc(sunX, sunY, 10, 0, Math.PI*2); sideCtx.fill();
+  }
+
+  // --- PARABOL OLUK ---
+  // local koordinat: cup yukari acik, x = aperture, y = derinlik
+  // y = x^2 / (4f), aperture = 6m, f = focal length
+  const aperture = 6, f = 1.5;  // 6m acikligi, 1.5m focal
+  sideCtx.save();
+  sideCtx.translate(cx, cy - 40);
+  // Track angle: -90=dogu(sol), 0=yukari, +90=bati(sag)
+  // Ekran rotasyonu (CW positive in canvas with y-down): track_angle
+  sideCtx.rotate(tracker.current_angle * Math.PI / 180);
+
+  // Parabola gövdesi (cup yukari)
+  sideCtx.strokeStyle = '#eceff4';
+  sideCtx.fillStyle = 'rgba(216,222,233,0.15)';
+  sideCtx.lineWidth = 3;
+  sideCtx.beginPath();
+  for (let x = -aperture/2; x <= aperture/2 + 0.01; x += 0.1) {
+    const y = (x*x) / (4*f);
+    const sx = x * SCALE, sy = -y * SCALE;  // canvas y down, so negate
+    if (x === -aperture/2) sideCtx.moveTo(sx, sy);
+    else sideCtx.lineTo(sx, sy);
+  }
+  sideCtx.stroke();
+  // dolgu icin yansitici alan
+  sideCtx.beginPath();
+  for (let x = -aperture/2; x <= aperture/2 + 0.01; x += 0.1) {
+    const y = (x*x) / (4*f);
+    const sx = x * SCALE, sy = -y * SCALE;
+    if (x === -aperture/2) sideCtx.moveTo(sx, sy);
+    else sideCtx.lineTo(sx, sy);
+  }
+  sideCtx.lineTo(aperture/2 * SCALE, -aperture/2 * SCALE);
+  sideCtx.lineTo(-aperture/2 * SCALE, -aperture/2 * SCALE);
+  sideCtx.closePath();
+  sideCtx.fillStyle = 'rgba(180,210,255,0.08)';
+  sideCtx.fill();
+
+  // Odak noktasi (boru) - parabola lokal frame'inde (0, f)
+  const focalRadius = 0.15;
+  const tempHotness = Math.max(0, Math.min(1, (pipeTemp - 100) / 400));
+  const r = 100 + tempHotness * 155;
+  const g_ = Math.floor(100 - tempHotness * 60);
+  const b = Math.floor(100 - tempHotness * 100);
+  sideCtx.fillStyle = `rgb(${r},${g_},${b})`;
+  sideCtx.strokeStyle = '#eceff4';
+  sideCtx.lineWidth = 1.5;
+  sideCtx.beginPath();
+  sideCtx.arc(0, -f * SCALE, focalRadius * SCALE * 2.5, 0, Math.PI*2);
+  sideCtx.fill(); sideCtx.stroke();
+
+  // Boru parlama efekti (sicaksa)
+  if (pipeTemp > 200) {
+    sideCtx.beginPath();
+    const glow = sideCtx.createRadialGradient(0, -f*SCALE, 4, 0, -f*SCALE, 30);
+    glow.addColorStop(0, `rgba(255,150,50,${tempHotness})`);
+    glow.addColorStop(1, 'rgba(255,150,50,0)');
+    sideCtx.fillStyle = glow;
+    sideCtx.arc(0, -f*SCALE, 30, 0, Math.PI*2); sideCtx.fill();
+  }
+  sideCtx.restore();
+
+  // Aci gostergesi (yay)
+  sideCtx.strokeStyle = '#a3be8c';
+  sideCtx.lineWidth = 1;
+  sideCtx.setLineDash([3,3]);
+  sideCtx.beginPath();
+  sideCtx.arc(cx, cy - 40, SCALE * 1.8, -Math.PI/2 - 90*Math.PI/180, -Math.PI/2 + 90*Math.PI/180);
+  sideCtx.stroke();
+  sideCtx.setLineDash([]);
+}
+
+// ---------- RENDERING: GRAPH ----------
+const graphCanvas = document.getElementById('graphView');
+const graphCtx = graphCanvas.getContext('2d');
+
+function drawGraph() {
+  const W = graphCanvas.width, H = graphCanvas.height;
+  graphCtx.clearRect(0,0,W,H);
+  graphCtx.fillStyle = '#11141a'; graphCtx.fillRect(0,0,W,H);
+
+  const padL = 40, padR = 12, padT = 8, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const yMin = -100, yMax = 100;
+  const x = h => padL + (h / 24) * plotW;
+  const y = v => padT + (1 - (v - yMin)/(yMax - yMin)) * plotH;
+
+  // grid
+  graphCtx.strokeStyle = '#2e3440'; graphCtx.lineWidth = 1;
+  graphCtx.fillStyle = '#4c566a'; graphCtx.font = '10px ui-monospace, monospace';
+  for (let h = 0; h <= 24; h += 2) {
+    graphCtx.beginPath(); graphCtx.moveTo(x(h), padT); graphCtx.lineTo(x(h), padT+plotH); graphCtx.stroke();
+    graphCtx.fillText(h+'h', x(h)-6, H-6);
+  }
+  for (let v = -90; v <= 90; v += 30) {
+    graphCtx.beginPath(); graphCtx.moveTo(padL, y(v)); graphCtx.lineTo(padL+plotW, y(v)); graphCtx.stroke();
+    graphCtx.fillText(v+'°', 4, y(v)+3);
+  }
+  // sifir cizgisi
+  graphCtx.strokeStyle = '#3b4252'; graphCtx.lineWidth = 1.5;
+  graphCtx.beginPath(); graphCtx.moveTo(padL, y(0)); graphCtx.lineTo(padL+plotW, y(0)); graphCtx.stroke();
+
+  // tarihce egrileri
+  const drawSeries = (key, color) => {
+    if (history.length < 2) return;
+    graphCtx.strokeStyle = color; graphCtx.lineWidth = 2;
+    graphCtx.beginPath();
+    for (let i = 0; i < history.length; i++) {
+      const p = history[i];
+      const px = x(p.h), py = y(p[key]);
+      if (i === 0) graphCtx.moveTo(px, py); else graphCtx.lineTo(px, py);
+    }
+    graphCtx.stroke();
+  };
+  drawSeries('elev', '#ebcb8b');
+  drawSeries('tgt',  '#88c0d0');
+  drawSeries('cur',  '#a3be8c');
+
+  // temp / 10 olarak
+  if (history.length >= 2) {
+    graphCtx.strokeStyle = '#bf616a'; graphCtx.lineWidth = 1.5;
+    graphCtx.beginPath();
+    for (let i = 0; i < history.length; i++) {
+      const p = history[i];
+      const px = x(p.h), py = y(p.temp/10);
+      if (i === 0) graphCtx.moveTo(px, py); else graphCtx.lineTo(px, py);
+    }
+    graphCtx.stroke();
+  }
+
+  // su anki zaman cizgisi
+  const hod = simWallTime.getHours() + simWallTime.getMinutes()/60 + simWallTime.getSeconds()/3600;
+  graphCtx.strokeStyle = '#d8dee9'; graphCtx.lineWidth = 1;
+  graphCtx.setLineDash([4,4]);
+  graphCtx.beginPath(); graphCtx.moveTo(x(hod), padT); graphCtx.lineTo(x(hod), padT+plotH); graphCtx.stroke();
+  graphCtx.setLineDash([]);
+}
+
+// ---------- TELEMETRI ----------
+function updateTelemetry() {
+  document.getElementById('t-date').textContent =
+    simWallTime.toLocaleDateString('tr-TR', { year:'numeric', month:'2-digit', day:'2-digit'});
+  document.getElementById('t-time').textContent =
+    simWallTime.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const stEl = document.getElementById('t-state');
+  stEl.textContent = tracker.state;
+  stEl.className = 'state-pill state-' + tracker.state;
+  document.getElementById('t-elev').textContent = tracker.last_sun.elevation.toFixed(2);
+  document.getElementById('t-az').textContent   = tracker.last_sun.azimuth.toFixed(2);
+  document.getElementById('t-tgt').textContent  = tracker.target_angle.toFixed(2);
+  document.getElementById('t-cur').textContent  = tracker.current_angle.toFixed(2);
+  document.getElementById('t-freq').textContent = motor.cur_freq.toFixed(0);
+  const speed = motor.cur_freq / CFG.PULSES_PER_DEGREE * motor.cur_dir;
+  document.getElementById('t-speed').textContent = speed.toFixed(3);
+  document.getElementById('t-temp').textContent = pipeTemp.toFixed(0);
+  document.getElementById('t-scale').textContent = timeScale;
+}
+
+// ---------- ANA LOOP ----------
+// Onemli: time scale yuksekse (orn 600x), her render frame'i sim'i 9600ms
+// ilerletir. Motor 7°/s hizla donerken pozisyon her frame ~70° atlar ve
+// hedefi asar -> oluk salinim yapar. Bu yuzden her frame'de simulasyonu
+// kucuk (max 50ms sim) alt-adimlara boluyoruz. Tracker/motor mantigi her
+// alt-adimda dogru tepki verir.
+function frame(nowReal) {
+  const dt_real_ms = Math.min(100, nowReal - lastFrameMs);
+  lastFrameMs = nowReal;
+  if (running) {
+    const total_sim_ms = dt_real_ms * timeScale;
+    const MAX_SUBSTEP_SIM_MS = 50;
+    const n = Math.min(400, Math.max(1, Math.ceil(total_sim_ms / MAX_SUBSTEP_SIM_MS)));
+    const sub_real_ms = dt_real_ms / n;
+    for (let i = 0; i < n; i++) step(sub_real_ms);
+  }
+  drawSideView();
+  drawGraph();
+  updateTelemetry();
+  requestAnimationFrame(frame);
+}
+
+// ---------- KONTROL BAGLANTILARI ----------
+function applySettings() {
+  LAT = parseFloat(document.getElementById('c-lat').value);
+  LON = parseFloat(document.getElementById('c-lon').value);
+  UTC = parseInt(document.getElementById('c-utc').value);
+  timeScale = parseInt(document.getElementById('c-scale').value);
+}
+function resetSim() {
+  const d = document.getElementById('c-date').value;
+  const t = document.getElementById('c-time').value;
+  simWallTime = new Date(d + 'T' + t + ':00');
+  simMillis = 0;
+  history = [];
+  pipeTemp = 25;
+  motor.state = 'IDLE'; motor.cur_freq = 0; motor.cur_dir = 0; motor.tgt_freq = 0; motor.freq_cap = -1;
+  tracker.state = 'INIT'; tracker.current_angle = 0; tracker.target_angle = CFG.HOME_ANGLE;
+  tracker.overheated = false; tracker.last_track_update = 0; tracker.state_entry = 0;
+  // Initial position: somewhere realistic (zenith) so HOME_FIND yapsin
+  tracker.current_angle = 0;
+}
+
+document.getElementById('c-scale').addEventListener('change', applySettings);
+['c-lat','c-lon','c-utc'].forEach(id => document.getElementById(id).addEventListener('change', applySettings));
+document.getElementById('c-temp').addEventListener('input', e => {
+  manualTemp = parseFloat(e.target.value);
+  manualTempOverride = true;
+  autoTemp = false;
+  document.getElementById('c-auto-temp').checked = false;
+  document.getElementById('c-temp-lbl').textContent = manualTemp.toFixed(0);
+});
+document.getElementById('c-auto-temp').addEventListener('change', e => {
+  autoTemp = e.target.checked;
+  manualTempOverride = !autoTemp;
+});
+document.getElementById('btn-play').addEventListener('click', () => running = true);
+document.getElementById('btn-pause').addEventListener('click', () => running = false);
+document.getElementById('btn-reset').addEventListener('click', () => { applySettings(); resetSim(); running = true; });
+
+applySettings();
+resetSim();
+requestAnimationFrame(frame);
+</script>
+
+</body>
+</html>
