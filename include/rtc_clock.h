@@ -5,22 +5,22 @@
 #include "sun_position.h"
 
 // ============================================================
-//  DS3231 RTC SURUCUSU (I2C uzerinden, Wire kutuphanesi)
+//  DS1302 RTC SURUCUSU (3-telli seri arayuz, kutuphane bagimliligi yok)
 // ============================================================
 
 class RtcClock {
 public:
-    // I2C baslat (varsayilan Wire). begin() Wire.begin() cagirir.
+    // GPIO pinlerini ayarlar ve cihaz var mi diye RAM round-trip testi yapar.
     bool begin();
 
-    // RTC'den anlik tarih/saati okur. utc_offset config'den verilir.
-    // Donus: true = okuma basarili, false = I2C hatasi
+    // RTC'den anlik tarih/saati okur (clock burst). utc_offset config'den verilir.
+    // Donus: true = okuma basarili, false = cihaz yok / mantiksiz deger
     bool read(DateTimeUTC& out, int utc_offset_hours);
 
     // RTC'ye tarih/saat yaz (manuel ayarlama icin).
     bool write(const DateTimeUTC& dt);
 
-    // RTC'nin oscillator stop flag'ini kontrol et (pil bitmis mi?)
+    // Clock Halt (CH) bit'ini kontrol et: true = oscillator durmus (pil bitmis/hic ayarlanmamis).
     bool oscillatorStopped();
 
 private:

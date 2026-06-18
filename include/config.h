@@ -8,7 +8,7 @@
 //  Donanim:
 //    - MCU:    ESP32 (DevKit)
 //    - Servo:  Delta ASDA-B2 (Pulse + Direction modu, Pt)
-//    - RTC:    DS3231 (I2C)
+//    - RTC:    DS1302 (3-telli seri)
 //    - Pozisyon: Potansiyometre (default) veya quadrature encoder
 //    - Sicaklik: MAX6675 K-tipi termokupl (SPI) [default; degistirilebilir]
 //  Optik: 6m genislik x 3 sira x 6m = 18m uzunluk, N-S yatay donme ekseni
@@ -82,7 +82,12 @@ constexpr int PIN_TEMP_CS   = 5;
 constexpr int PIN_TEMP_SCK  = 18;   // ESP32 default VSPI SCK
 constexpr int PIN_TEMP_MISO = 19;   // ESP32 default VSPI MISO
 
-// I2C (DS3231): ESP32 default SDA=21, SCL=22 (Wire.begin() default)
+// RTC (DS1302): 3-telli seri arayuz — I2C DEGIL.
+// DS1302 modulu 3.3V'tan beslenmeli (VCC->3V3); 5V'tan beslersen DAT hatti
+// 5V'a cikar ve ESP32 GPIO'su 5V toleransli degildir.
+constexpr int PIN_RTC_CLK = 22;   // DS1302 CLK (SCLK)
+constexpr int PIN_RTC_DAT = 21;   // DS1302 DAT (I/O, cift yonlu)
+constexpr int PIN_RTC_RST = 23;   // DS1302 RST (CE, aktif HIGH)
 
 // --- LEDC (pulse uretim) ---
 constexpr int LEDC_CHANNEL    = 0;
@@ -99,9 +104,6 @@ constexpr unsigned long TEMP_READ_INTERVAL_MS = 1000;
 constexpr double ANGLE_TOLERANCE    = 0.3;
 constexpr double ANGLE_RAMP_ZONE    = 3.0;
 constexpr unsigned long TRACK_INTERVAL_MS = 10000;
-
-// --- DS3231 ---
-constexpr uint8_t RTC_I2C_ADDR = 0x68;
 
 // --- Gunes Esikleri ---
 constexpr double SUNRISE_MIN_ELEVATION = 2.0;

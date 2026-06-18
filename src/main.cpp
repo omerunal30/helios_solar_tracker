@@ -22,7 +22,7 @@ void setup() {
     Serial.println(F("=== Parabol Oluk Tracker (ESP32 + ASDA-B2) ==="));
 
     if (!rtc.begin()) {
-        Serial.println(F("HATA: DS3231 RTC bulunamadi (I2C SDA=21 SCL=22 kontrol et)"));
+        Serial.println(F("HATA: DS1302 RTC bulunamadi (CLK=22 DAT=21 RST=23 ve VCC=3V3 kontrol et)"));
     } else if (rtc.oscillatorStopped()) {
         Serial.println(F("UYARI: RTC oscillator durmus, saati ayarlamak gerek."));
         // Ilk kurulumda manuel ayarlamak icin:
